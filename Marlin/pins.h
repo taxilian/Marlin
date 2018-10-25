@@ -190,6 +190,20 @@
   #include "pins_SAINSMART_2IN1.h"
 #elif MB(ZRIB_V20)
   #include "pins_ZRIB_V20.h"
+#elif MB(ONEPLUS_wanhao)
+#include "pins_ONEPLUS_wanhao.h"
+#elif MB(ONEPLUS1_wanhao)
+#include "pins_ONEPLUS1_wanhao.h"
+#elif MB(ULTIMAKER_wanhao)
+#include "pins_ULTIMAKER_wanhao.h"
+#elif MB(MELZI_wanhao)
+#include "pins_MELZI_wanhao.h"
+#elif MB(I3PLUS)
+#include "pins_I3PLUS.h"
+#elif MB(I3PLUS3030)
+#include "pins_I3PLUS3030.h"
+#elif MB(F6)
+#include "pins_F6.h"
 #else
   #error "Unknown MOTHERBOARD value set in Configuration.h"
 #endif

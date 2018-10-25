@@ -44,11 +44,8 @@ void safe_delay(millis_t ms) {
         *crc = (uint16_t)((*crc & 0x8000) ? ((uint16_t)(*crc << 1) ^ 0x1021) : (*crc << 1));
     }
   }
-
-#endif // EEPROM_SETTINGS
-
-#if ENABLED(ULTRA_LCD)
-
+#endif 
+#if ENABLED(ULTRA_LCD)||ENABLED(ULTRA_LCD_WANHAO_ONEPLUS) || ENABLED(DOGLCD)
   char conv[8] = { 0 };
 
   #define DIGIT(n) ('0' + (n))
@@ -63,8 +60,13 @@ void safe_delay(millis_t ms) {
     conv[6] = DIGIMOD(xx, 1);
     return &conv[4];
   }
-
-  // Convert signed int to rj string with 123 or -12 format
+  char* itostr2(const uint8_t& x) {
+      int xx = x;
+      conv[0] = (xx / 10) % 10 + '0';
+      conv[1] = xx % 10 + '0';
+      conv[2] = 0;
+      return conv;
+  }
   char* itostr3(const int x) {
     int xx = x;
     conv[4] = MINUSOR(xx, RJDIGIT(xx, 100));
@@ -72,8 +74,17 @@ void safe_delay(millis_t ms) {
     conv[6] = DIGIMOD(xx, 1);
     return &conv[4];
   }
-
-  // Convert unsigned int to lj string with 123 format
+  char* ftostr31(const float& x) {
+      int xx = abs(x * 10);
+      conv[0] = (x >= 0) ? '+' : '-';
+      conv[1] = (xx / 1000) % 10 + '0';
+      conv[2] = (xx / 100) % 10 + '0';
+      conv[3] = (xx / 10) % 10 + '0';
+      conv[4] = '.';
+      conv[5] = xx % 10 + '0';
+      conv[6] = 0;
+      return conv;
+  }
   char* itostr3left(const int xx) {
     char *str = &conv[6];
     *str = DIGIMOD(xx, 1);
@@ -215,8 +226,19 @@ void safe_delay(millis_t ms) {
     conv[6] = DIGIMOD(xx, 1);
     return conv;
   }
-
-  // Convert unsigned float to string with 1234.56 format omitting trailing zeros
+  char* ftostr62sign(const float& x) {
+      long xx = abs(x * 100);
+      conv[0] = MINUSOR(xx, '+');
+      conv[1] = DIGIMOD(xx, 100000);
+      conv[2] = DIGIMOD(xx, 10000);
+      conv[3] = DIGIMOD(xx, 1000);
+      conv[4] = DIGIMOD(xx, 100);
+      conv[5] = '.';
+      conv[6] = DIGIMOD(xx, 10);
+      conv[7] = DIGIMOD(xx, 1);
+      conv[8] = '\0';
+      return conv;
+  }
   char* ftostr62rj(const float &x) {
     const long xx = (x < 0 ? -x : x) * 100;
     conv[0] = RJDIGIT(xx, 100000);

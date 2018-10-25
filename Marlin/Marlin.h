@@ -57,6 +57,7 @@ void idle(
   #endif
 );
 
+  void report_current_position(); 
 void manage_inactivity(bool ignore_stepper_queue = false);
 
 #if ENABLED(DUAL_X_CARRIAGE) || ENABLED(DUAL_NOZZLE_DUPLICATION_MODE)
@@ -172,6 +173,30 @@ void manage_inactivity(bool ignore_stepper_queue = false);
 /**
  * The axis order in all axis related arrays is X, Y, Z, E
  */
+typedef enum
+{
+    WIFI_SWITCH_STAGE_INIT=0,
+    WIFI_SWITCH_STAGE_NET_MODE=1,
+    WIFI_SWITCH_STAGE_NET_MODE_END=2,
+    WIFI_SWITCH_STAGE_WIFI_CONF=3,
+    WIFI_SWITCH_STAGE_WIFI_CONF_END=4,
+    WIFI_SWITCH_STAGE_WIFI_CONF1=5,
+    WIFI_SWITCH_STAGE_WIFI_CONF2=6,
+    WIFI_SWITCH_STAGE_DHCPD_IP=7,
+    WIFI_SWITCH_STAGE_DHCPD_IP_END=8,
+    WIFI_SWITCH_STAGE_DHCPD_IP_END2=18,
+    WIFI_SWITCH_STAGE_DHCPD_IP1=9,
+    WIFI_SWITCH_STAGE_DHCPD_IP2=10,
+    WIFI_SWITCH_STAGE_WAN_IP=11,
+    WIFI_SWITCH_STAGE_WAN_IP_END=12,
+    WIFI_SWITCH_STAGE_WAN_IP_END2=19,
+    WIFI_SWITCH_STAGE_WAN_IP1=13,
+    WIFI_SWITCH_STAGE_WAN_IP2=14,
+    WIFI_SWITCH_STAGE_OUT_TRANS=15,
+    WIFI_SWITCH_STAGE_OUT_TRANS_END=16,
+    WIFI_SWITCH_STAGE_END=17,
+} EM_WIFI_SWITCH_STAGE;
+extern EM_WIFI_SWITCH_STAGE wifiSwitchModeStage;
 #define _AXIS(AXIS) AXIS ##_AXIS
 
 void enable_all_steppers();
@@ -191,7 +216,46 @@ void quickstop_stepper();
 
 extern uint8_t marlin_debug_flags;
 #define DEBUGGING(F) (marlin_debug_flags & (DEBUG_## F))
-
+enum MACRO_var_V019 
+{
+    MACRO_var_V01A = 0,
+    MACRO_var_V01D = 3,
+    MACRO_var_V01E = 4,
+    MACRO_var_V01F = 5,
+    MACRO_var_V023 = 9,
+};
+extern MACRO_var_V019 GLOBAL_var_V007;
+enum MACRO_var_V01B
+{
+    MACRO_var_V01C=0,
+    MACRO_var_V022=1,
+    MACRO_var_V021=2,
+    MACRO_var_V020=3,
+    MACRO_var_V025=4,
+    MACRO_VAR_V056=5,
+};
+extern MACRO_var_V01B GLOBAL_var_V00E;
+bool recordEnvironment();
+bool recordEnvironmentPure(); 
+#if PIN_EXISTS(PS_ON)
+extern bool GLOBAL_var_V005;
+#endif
+#ifdef DEFAULT_ENERGY_CONSERVE_HEIGHT
+extern float zEnergyHeight;
+extern bool ifEnergyConserve;
+#endif
+#include "Sd2Card.h" 
+union cmdPos_t
+{
+    uint8_t n8[4];
+    uint32_t n32;
+};
+extern volatile cmdPos_t currentCmdSdPos;
+extern float feedrate_mm_s;
+#ifdef DEFAULT_ENERGY_CONSERVE_HEIGHT
+extern float recordBedTemperature;
+#endif
+extern char GLOBAL_var_V004[FILENAME_LENGTH + 1];
 extern bool Running;
 inline bool IsRunning() { return  Running; }
 inline bool IsStopped() { return !Running; }
@@ -200,6 +264,9 @@ bool enqueue_and_echo_command(const char* cmd, bool say_ok=false); // Add a sing
 void enqueue_and_echo_commands_P(const char * const cmd);          // Set one or more commands to be prioritized over the next Serial/SD command.
 void clear_command_queue();
 
+#ifdef DEFAULT_ACTIVE_TIME_OVER
+extern millis_t max_inactive_time;
+#endif
 extern millis_t previous_cmd_ms;
 inline void refresh_cmd_timeout() { previous_cmd_ms = millis(); }
 
@@ -225,6 +292,9 @@ extern bool axis_known_position[XYZ];
 extern bool axis_homed[XYZ];
 extern volatile bool wait_for_heatup;
 
+extern uint8_t commands_in_queue;
+extern uint8_t cmd_queue_index_r, cmd_queue_index_w;
+extern float destination[XYZE];
 #if HAS_RESUME_CONTINUE
   extern volatile bool wait_for_user;
 #endif
@@ -272,6 +342,17 @@ extern float current_position[NUM_AXIS];
 #define RAW_CURRENT_POSITION(A)     RAW_##A##_POSITION(current_position[A##_AXIS])
 
 // Hotend Offsets
+#if PIN_EXISTS(POW_BREAK_CHECK)||PIN_EXISTS(SHUTDOWN_CHECK)||PIN_EXISTS(PS_ON)
+    enum MACRO_var_V00E
+    {
+        MACRO_var_V009,                  
+        MACRO_var_V00A,               
+        MACRO_var_V00B,              
+        MACRO_var_V00C,            
+        MACRO_var_V00D            
+    };
+    extern MACRO_var_V00E GLOBAL_var_V003;
+#endif
 #if HOTENDS > 1
   extern float hotend_offset[XYZ][HOTENDS];
 #endif
@@ -338,6 +419,7 @@ extern float soft_endstop_min[XYZ], soft_endstop_max[XYZ];
 
 #if HAS_BED_PROBE
   extern float zprobe_zoffset;
+  extern float zprobe_zoffset_last; 
   void refresh_zprobe_zoffset(const bool no_babystep=false);
   #define DEPLOY_PROBE() set_probe_deployed(true)
   #define STOW_PROBE() set_probe_deployed(false)
@@ -375,6 +457,10 @@ extern float soft_endstop_min[XYZ], soft_endstop_max[XYZ];
   extern int8_t filwidth_delay_index[2]; // Ring buffer indexes. Used by planner, temperature, and main code
 #endif
 
+#if ENABLED(FILAMENT_RUNOUT_SENSOR)
+  extern bool filament_ran_out; 
+  extern bool filament_ran_out_stepper_runing;
+#endif
 #if ENABLED(ADVANCED_PAUSE_FEATURE)
   extern AdvancedPauseMenuResponse advanced_pause_menu_response;
 #endif
@@ -481,3 +567,8 @@ FORCE_INLINE bool position_is_reachable_xy(const float &lx, const float &ly) {
 }
 
 #endif // MARLIN_H
+void FunV007();
+void homeZ();
+void gcode_G28(const bool always_home_all);
+void do_probe_raise(const float z_raise);
+#endif 

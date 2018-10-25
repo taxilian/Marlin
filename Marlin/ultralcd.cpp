@@ -95,6 +95,9 @@ uint16_t max_display_update_time = 0;
   uint8_t driverPercent[XYZE];
 #endif
 
+#if PIN_EXISTS(SD_DETECT)
+  uint8_t lcd_sd_status;
+#endif
 #if ENABLED(ULTIPANEL)
 
   #ifndef TALL_FONT_CORRECTION
@@ -715,6 +718,18 @@ void kill_screen(const char* lcd_msg) {
       lcd_setstatusPGM(PSTR(MSG_PRINT_PAUSED), -1);
     }
 
+#if PIN_EXISTS(PS_ON)
+    inline void lcd_ifShutdownComplete()
+    {
+        GLOBAL_var_V005=!GLOBAL_var_V005;
+    }
+#endif
+#ifdef DEFAULT_ENERGY_CONSERVE_HEIGHT
+    inline void lcd_ifEnergyConserve()
+    {
+        ifEnergyConserve = !ifEnergyConserve;
+    }
+#endif
     void lcd_sdcard_resume() {
       #if ENABLED(PARK_HEAD_ON_PAUSE)
         enqueue_and_echo_commands_P(PSTR("M24"));
@@ -880,6 +895,23 @@ void kill_screen(const char* lcd_msg) {
    *
    */
 
+    static bool ifPause = false;
+    static inline void myLcdPausePrint()
+    {
+        GLOBAL_var_V00E=MACRO_var_V020;
+        ifPause = true;
+    }
+    static inline void myLcdResumePrint()
+    {
+        GLOBAL_var_V00E=MACRO_var_V021;
+        ifPause = false;
+        lcd_return_to_status();
+    }
+    static inline void myLcdStopPrint()
+    {
+        GLOBAL_var_V00E=MACRO_var_V022;
+        ifPause = false;
+    }
   void lcd_main_menu() {
     START_MENU();
     MENU_BACK(MSG_WATCH);
@@ -917,14 +949,38 @@ void kill_screen(const char* lcd_msg) {
     }
     MENU_ITEM(submenu, MSG_CONTROL, lcd_control_menu);
 
+    const char* str;
+#if PIN_EXISTS(PS_ON)
+    if(GLOBAL_var_V005)
+    {
+        MENU_ITEM(function, "Finish to turn off", lcd_ifShutdownComplete); 
+    }
+    else
+    {
+        MENU_ITEM(function, "Finish to turn on", lcd_ifShutdownComplete);
+    }
+#endif
+#ifdef DEFAULT_ENERGY_CONSERVE_HEIGHT
+    if (ifEnergyConserve)
+    {
+        MENU_ITEM(function, "Energy conserve", lcd_ifEnergyConserve);
+    }
+    else
+    {
+        MENU_ITEM(function, "Normal print", lcd_ifEnergyConserve);
+    }
+#endif
     #if ENABLED(SDSUPPORT)
       if (card.cardOK) {
-        if (card.isFileOpen()) {
-          if (card.sdprinting)
-            MENU_ITEM(function, MSG_PAUSE_PRINT, lcd_sdcard_pause);
+          if (card.isFileOpen()
+              || ifPause
+              ) 
+          {
+            if (card.sdprinting)
+              MENU_ITEM(function, MSG_PAUSE_PRINT, myLcdPausePrint);
           else
-            MENU_ITEM(function, MSG_RESUME_PRINT, lcd_sdcard_resume);
-          MENU_ITEM(function, MSG_STOP_PRINT, lcd_sdcard_stop);
+              MENU_ITEM(function, MSG_RESUME_PRINT, myLcdResumePrint);
+          MENU_ITEM(function, MSG_STOP_PRINT, myLcdStopPrint);
         }
         else {
           MENU_ITEM(submenu, MSG_CARD_MENU, lcd_sdcard_menu);
@@ -947,13 +1003,60 @@ void kill_screen(const char* lcd_msg) {
 
     END_MENU();
   }
-
-  /**
-   *
-   * "Tune" submenu items
-   *
-   */
-
+#define MY_MENU_ITEM_PART_1(TYPE, LABEL,offset, ...) \
+    if (_menuLineNr == _thisItemNr) {\
+    if (lcdDrawUpdate) \
+    lcd_implementation_drawmenu_ ## TYPE(encoderLine == _thisItemNr, offset, PSTR(LABEL), ## __VA_ARGS__); \
+    if (lcd_clicked && encoderLine == _thisItemNr) {
+#define MY_MENU_ITEM_PART_2(TYPE, ...) \
+    menu_action_ ## TYPE(__VA_ARGS__); \
+    if (screen_changed) return;}}\
+    ++_thisItemNr
+#define MY_MENU_ITEM(TYPE, LABEL, offset,...) do { \
+    _skipStatic = false; \
+    MY_MENU_ITEM_PART_1(TYPE, LABEL,offset, ## __VA_ARGS__); \
+    MY_MENU_ITEM_PART_2(TYPE,  ## __VA_ARGS__); \
+    } while (0)
+  void lcdContinuPrint()
+  {
+      defer_return_to_status = false;
+      enqueue_and_echo_commands_P(PSTR("M1101"));
+      lcd_goto_screen(lcd_status_screen);
+  }
+  void lcdAbortContinuePrint()
+  {
+      defer_return_to_status = false;
+      enqueue_and_echo_commands_P(PSTR("M1103"));
+      lcd_goto_screen(lcd_status_screen);
+  }
+  void askForReprint() {
+      defer_return_to_status = true;
+      START_MENU();
+      MY_MENU_ITEM(function, "Yes", 3, lcdContinuPrint);
+      MY_MENU_ITEM(function, "No", 4, lcdAbortContinuePrint);
+      END_MENU();
+      if (lcdDrawUpdate)
+      {
+      #if ENABLED(DOGLCD)
+          u8g.setColorIndex(1);
+          u8g.setPrintPos(0, 12 * 1);
+          lcd_print("Last print task is");
+          u8g.setPrintPos(0, 12 * 2);
+          lcd_print("uncompleted,do you");
+          u8g.setPrintPos(0, 12 * 3);
+          lcd_print("want to continue?");
+      #else 
+          lcd.setCursor(0, 0); 
+          lcd.setCursor(3, 0);
+          lcd_print("Print the");
+          #if LCD_HEIGHT > 2
+          lcd.setCursor(0, 1); 
+          lcd.setCursor(3, 0);
+          lcd_print("unfinished task?");
+          #endif 
+      #endif
+      }
+  }
   #if HAS_M206_COMMAND
     /**
      * Set the home offset based on the current_position
@@ -4183,8 +4286,31 @@ bool lcd_blink() {
  *
  * No worries. This function is only called from the main thread.
  */
+static void FunV042()
+{
+    uint8_t n;
+    for (n = 0; n < 16; n++)
+    {
+        if (GLOBAL_var_V001&(1 << n))
+        {
+            GLOBAL_var_V001 &= ~((uint16_t)0x0001 << n);
+            break;
+        }
+    }
+    switch(n)
+    {
+    case MACRO_var_V005:
+        defer_return_to_status = true;
+        lcd_goto_screen(askForReprint);
+        break;
+    case MACRO_var_V006:
+        defer_return_to_status = false;
+        lcd_return_to_status();
+        break;
+    }
+}
 void lcd_update() {
-
+    FunV042();
   #if ENABLED(ULTIPANEL)
     static millis_t return_to_status_ms = 0;
     manage_manual_move();

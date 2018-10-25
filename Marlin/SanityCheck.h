@@ -285,17 +285,6 @@
  * Babystepping
  */
 #if ENABLED(BABYSTEPPING)
-  #if DISABLED(ULTRA_LCD) && DISABLED(I2C_POSITION_ENCODERS)
-    #error "BABYSTEPPING requires an LCD controller."
-  #elif ENABLED(SCARA)
-    #error "BABYSTEPPING is not implemented for SCARA yet."
-  #elif ENABLED(DELTA) && ENABLED(BABYSTEP_XY)
-    #error "BABYSTEPPING only implemented for Z axis on deltabots."
-  #elif ENABLED(BABYSTEP_ZPROBE_OFFSET) &&  ENABLED(MESH_BED_LEVELING)
-    #error "MESH_BED_LEVELING and BABYSTEP_ZPROBE_OFFSET is not a valid combination"
-  #elif ENABLED(BABYSTEP_ZPROBE_OFFSET) && !HAS_BED_PROBE
-    #error "BABYSTEP_ZPROBE_OFFSET requires a probe."
-  #endif
 #endif
 
 /**
@@ -315,7 +304,7 @@
  * Advanced Pause
  */
 #if ENABLED(ADVANCED_PAUSE_FEATURE)
-  #if DISABLED(NEWPANEL)
+#if DISABLED(NEWPANEL)&&DISABLED(ENABLE_ULTILCD2)&&DISABLED(FYSTLCD_V1) 
     #error "ADVANCED_PAUSE_FEATURE currently requires an LCD controller."
   #elif ENABLED(EXTRUDER_RUNOUT_PREVENT)
     #error "EXTRUDER_RUNOUT_PREVENT is incompatible with ADVANCED_PAUSE_FEATURE."
@@ -1314,3 +1303,6 @@ static_assert(COUNT(sanity_arr_3) <= XYZE_N, "DEFAULT_MAX_ACCELERATION has too m
     #endif
   #endif
 #endif // SPINDLE_LASER_ENABLE
+#if !defined(EEPROM_SETTINGS)
+#error MACRO_var_V010 need use eeprom and you must enable it.
+#endif

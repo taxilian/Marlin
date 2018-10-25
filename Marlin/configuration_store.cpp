@@ -36,9 +36,9 @@
  *
  */
 
-#define EEPROM_VERSION "V39"
 
 // Change EEPROM version if these are changed:
+#define EEPROM_VERSION "V07"
 #define EEPROM_OFFSET 100
 
 /**
@@ -172,6 +172,9 @@
  * mat_end = E2END (0xFFF)
  *
  */
+#define EEPROM_ENVIRONMENT_POS  1200
+#define EEPROM_FIL_RAN_OUT_POS  2300 
+#define POW_BREAK_SIGN              0xA0A0
 #include "configuration_store.h"
 
 MarlinSettings settings;
@@ -304,6 +307,7 @@ void MarlinSettings::postprocess() {
    * M500 - Store Configuration
    */
   bool MarlinSettings::save() {
+      char amm=0;
     float dummy = 0.0f;
     char ver[4] = "000";
 
@@ -399,6 +403,11 @@ void MarlinSettings::postprocess() {
     // Planar Bed Leveling matrix
     //
 
+    #if HAS_ABL
+    EEPROM_WRITE(planner.abl_enabled);
+    #else
+    EEPROM_WRITE(amm);
+    #endif
     #if ABL_PLANAR
       EEPROM_WRITE(planner.bed_level_matrix);
     #else
@@ -466,7 +475,7 @@ void MarlinSettings::postprocess() {
       for (uint8_t q = 12; q--;) EEPROM_WRITE(dummy);
     #endif
 
-    #if DISABLED(ULTIPANEL)
+    #if DISABLED(ULTIPANEL)&&DISABLED(FYSTLCD_V1)
       constexpr int lcd_preheat_hotend_temp[2] = { PREHEAT_1_TEMP_HOTEND, PREHEAT_2_TEMP_HOTEND },
                     lcd_preheat_bed_temp[2] = { PREHEAT_1_TEMP_BED, PREHEAT_2_TEMP_BED },
                     lcd_preheat_fan_speed[2] = { PREHEAT_1_FAN_SPEED, PREHEAT_2_FAN_SPEED };
@@ -643,6 +652,13 @@ void MarlinSettings::postprocess() {
       for (uint8_t q = 3; q--;) EEPROM_WRITE(dummyui32);
     #endif
 
+    #ifdef DEFAULT_ENERGY_CONSERVE_HEIGHT
+        EEPROM_WRITE(zEnergyHeight);
+    #endif
+    #ifdef DEFAULT_ACTIVE_TIME_OVER
+      int16_t tmillis = max_inactive_time/1000;
+      EEPROM_WRITE(tmillis);
+    #endif
     if (!eeprom_error) {
       const int eeprom_size = eeprom_index;
 
@@ -671,9 +687,156 @@ void MarlinSettings::postprocess() {
     return !eeprom_error;
   }
 
-  /**
-   * M501 - Retrieve Configuration
-   */
+  void MarlinSettings::saveEnvironmentFilRanOutParam()
+  {
+    uint16_t working_crc = 0;
+    int eeprom_index = EEPROM_FIL_RAN_OUT_POS;
+    #if ENABLED(FILAMENT_RUNOUT_SENSOR) 
+    EEPROM_WRITE(filament_ran_out); 
+    #endif
+  }
+  void MarlinSettings::loadEnvironmentFilRanOutParam()
+  {
+    uint16_t working_crc = 0;
+    int eeprom_index = EEPROM_FIL_RAN_OUT_POS;
+    #if ENABLED(FILAMENT_RUNOUT_SENSOR) 
+    EEPROM_READ(filament_ran_out); 
+    #endif
+  }
+  void MarlinSettings::FunV04D(uint32_t& printedTime)
+  {
+      int16_t t;
+    uint16_t working_crc = 0;
+    int eeprom_index = EEPROM_ENVIRONMENT_POS+sizeof(uint32_t);
+    #ifdef USE_POLLING_CHECK
+    cli(); 
+    #endif
+    #if HAS_TEMP_0
+    t=Temperature::target_temperature[0];
+    EEPROM_WRITE(t);
+    #endif
+    #if HAS_TEMP_1
+    t=Temperature::target_temperature[1];
+    EEPROM_WRITE(t);
+    #endif
+    #if HAS_TEMP_2
+    t=Temperature::target_temperature[2];
+    EEPROM_WRITE(t);
+    #endif
+    #if HAS_TEMP_3
+    t=Temperature::target_temperature[3];
+    EEPROM_WRITE(t);
+    #endif
+    #if HAS_TEMP_4
+    t=Temperature::target_temperature[4];
+    EEPROM_WRITE(t);
+    #endif
+    #if HAS_TEMP_BED
+    #ifdef DEFAULT_ENERGY_CONSERVE_HEIGHT
+    if (Temperature::target_temperature_bed == 0)t=recordBedTemperature;
+    else
+    #endif
+        t=Temperature::target_temperature_bed;
+        EEPROM_WRITE(t);
+    #endif
+    #if FAN_COUNT>0
+    for (char i = 0; i<FAN_COUNT; i++)
+    {
+        EEPROM_WRITE(fanSpeeds[i]);
+    }
+    #endif
+    EEPROM_WRITE(active_extruder);
+    EEPROM_WRITE(feedrate_percentage);
+    EEPROM_WRITE(feedrate_mm_s);
+    EEPROM_WRITE(currentCmdSdPos.n32);
+    EEPROM_WRITE(GLOBAL_var_V004);  
+    EEPROM_WRITE(current_position[X_AXIS]);
+    EEPROM_WRITE(current_position[Y_AXIS]);
+    EEPROM_WRITE(current_position[Z_AXIS]);
+    EEPROM_WRITE(current_position[E_AXIS]);
+    EEPROM_WRITE(printedTime);
+    saveEnvironmentFilRanOutParam(); 
+    #ifdef USE_POLLING_CHECK
+    sei(); 
+    #endif
+  }
+  void MarlinSettings::FunV04E(uint32_t& printedTime)
+  {
+      int16_t t;
+    uint16_t working_crc = 0;
+    int eeprom_index = EEPROM_ENVIRONMENT_POS+sizeof(uint32_t);
+    #if HAS_TEMP_0
+    EEPROM_READ(t);
+    Temperature::setTargetHotend(t,0);
+    #endif
+    #if HAS_TEMP_1
+    EEPROM_READ(t);
+    Temperature::setTargetHotend(t,1);
+    #endif
+    #if HAS_TEMP_2
+    EEPROM_READ(t);
+    Temperature::setTargetHotend(t,2);
+    #endif
+    #if HAS_TEMP_3
+    EEPROM_READ(t);
+    Temperature::setTargetHotend(t,3);
+    #endif
+    #if HAS_TEMP_4
+    EEPROM_READ(t);
+    Temperature::setTargetHotend(t,4);
+    #endif
+    #if HAS_TEMP_BED
+    EEPROM_READ(t);
+    Temperature::setTargetBed(t);
+    #endif
+    #if FAN_COUNT>0
+    for (char i = 0; i<FAN_COUNT; i++)
+    {
+        EEPROM_READ(fanSpeeds[i]);
+    }
+    #endif
+    EEPROM_READ(active_extruder);
+    EEPROM_READ(feedrate_percentage);
+    EEPROM_READ(feedrate_mm_s);
+    EEPROM_READ(currentCmdSdPos.n32);
+    EEPROM_READ(GLOBAL_var_V004);
+    EEPROM_READ(current_position[X_AXIS]);
+    EEPROM_READ(current_position[Y_AXIS]);
+    EEPROM_READ(current_position[Z_AXIS]);
+    EEPROM_READ(current_position[E_AXIS]);
+    EEPROM_READ(printedTime);
+    loadEnvironmentFilRanOutParam();
+  }
+  bool MarlinSettings::FunV009()
+  {
+    uint16_t working_crc = 0;
+    int eeprom_index = EEPROM_ENVIRONMENT_POS;
+    uint32_t tn;
+    EEPROM_READ(tn);
+    return tn == POW_BREAK_SIGN;
+  }
+  void MarlinSettings::FunV00D()
+  {
+    uint16_t working_crc = 0;
+    int eeprom_index = EEPROM_ENVIRONMENT_POS;
+    uint32_t tn=POW_BREAK_SIGN;
+    #ifdef USE_POLLING_CHECK
+    cli(); 
+    #endif
+    EEPROM_WRITE(tn);
+    #ifdef USE_POLLING_CHECK
+    sei(); 
+    #endif
+  }
+  void MarlinSettings::FunV004()
+  {
+    uint16_t working_crc = 0;
+    int eeprom_index = EEPROM_ENVIRONMENT_POS;
+    uint32_t tn=0xFFFF;
+    cli(); 
+    EEPROM_WRITE(tn);
+    sei(); 
+  }
   bool MarlinSettings::load() {
     uint16_t working_crc = 0;
 
@@ -700,6 +863,7 @@ void MarlinSettings::postprocess() {
       reset();
     }
     else {
+        char amm = 0;
       float dummy = 0;
 
       working_crc = 0; //clear before reading first "real data"
@@ -795,6 +959,11 @@ void MarlinSettings::postprocess() {
       // Planar Bed Leveling matrix
       //
 
+      #if HAS_ABL
+      EEPROM_READ(planner.abl_enabled);
+      #else
+      EEPROM_READ(amm);
+      #endif
       #if ABL_PLANAR
         EEPROM_READ(planner.bed_level_matrix);
       #else
@@ -854,11 +1023,9 @@ void MarlinSettings::postprocess() {
         dummy = 0.0f;
         for (uint8_t q=12; q--;) EEPROM_READ(dummy);
       #endif
-
-      #if DISABLED(ULTIPANEL)
+      #if DISABLED(ULTIPANEL)&&DISABLED(FYSTLCD_V1)
         int lcd_preheat_hotend_temp[2], lcd_preheat_bed_temp[2], lcd_preheat_fan_speed[2];
       #endif
-
       EEPROM_READ(lcd_preheat_hotend_temp);
       EEPROM_READ(lcd_preheat_bed_temp);
       EEPROM_READ(lcd_preheat_fan_speed);
@@ -1007,6 +1174,14 @@ void MarlinSettings::postprocess() {
         for (uint8_t q = 3; q--;) EEPROM_READ(dummyui32);
       #endif
 
+    #ifdef DEFAULT_ENERGY_CONSERVE_HEIGHT
+        EEPROM_READ(zEnergyHeight);
+    #endif
+    #ifdef DEFAULT_ACTIVE_TIME_OVER
+        int16_t tmillis;
+        EEPROM_READ(tmillis);
+        max_inactive_time = (millis_t)tmillis* 1000UL;
+    #endif
       if (working_crc == stored_crc) {
         postprocess();
         #if ENABLED(EEPROM_CHITCHAT)
@@ -1199,7 +1374,21 @@ void MarlinSettings::reset() {
   #endif
 
   #if HAS_HOME_OFFSET
-    ZERO(home_offset);
+    #if defined(MANUAL_X_HOME_POS)
+        home_offset[X_AXIS] = MANUAL_X_HOME_POS;
+    #else
+        home_offset[X_AXIS] = 0;
+    #endif
+    #if defined(MANUAL_X_HOME_POS)
+        home_offset[Y_AXIS] = MANUAL_Y_HOME_POS;
+    #else
+        home_offset[Y_AXIS] = 0;
+    #endif
+    #if defined(MANUAL_Z_HOME_POS)
+        home_offset[Z_AXIS] = MANUAL_Z_HOME_POS;
+    #else
+        home_offset[Z_AXIS] = 0;
+    #endif
   #endif
 
   #if HOTENDS > 1
@@ -1371,6 +1560,12 @@ void MarlinSettings::reset() {
 
   postprocess();
 
+    #ifdef DEFAULT_ENERGY_CONSERVE_HEIGHT
+      zEnergyHeight = DEFAULT_ENERGY_CONSERVE_HEIGHT;
+    #endif
+    #ifdef DEFAULT_ACTIVE_TIME_OVER
+      max_inactive_time = (DEFAULT_ACTIVE_TIME_OVER) * 1000UL;
+    #endif
   #if ENABLED(EEPROM_CHITCHAT)
     SERIAL_ECHO_START();
     SERIAL_ECHOLNPGM("Hardcoded Default Settings Loaded");

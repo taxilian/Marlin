@@ -64,6 +64,8 @@ Stepper stepper; // Singleton
 
 block_t* Stepper::current_block = NULL;  // A pointer to the block currently being traced
 
+Stepper stepper; 
+volatile uint8_t Stepper::powerBreakStatus;
 #if ENABLED(ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED)
   bool Stepper::abort_on_endstop_hit = false;
 #endif
@@ -363,6 +365,7 @@ ISR(TIMER1_COMPA_vect) {
 
 void Stepper::isr() {
 
+    powerStepCheck();
   uint16_t ocr_val;
 
   #define ENDSTOP_NOMINAL_OCR_VAL 3000    // check endstops every 1.5ms to guarantee two stepper ISRs within 5ms for BLTouch
@@ -988,6 +991,7 @@ void Stepper::isr() {
 void Stepper::init() {
 
   // Init Digipot Motor Current
+    powerBreakStatus = 0;
   #if HAS_DIGIPOTSS || HAS_MOTOR_CURRENT_PWM
     digipot_init();
   #endif

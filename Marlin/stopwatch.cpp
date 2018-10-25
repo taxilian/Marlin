@@ -53,6 +53,11 @@ bool Stopwatch::pause() {
   else return false;
 }
 
+void Stopwatch::resume(millis_t t){
+    this->accumulator = t;
+    this->state = RUNNING;
+    this->startTimestamp = millis();
+}
 bool Stopwatch::start() {
   #if ENABLED(DEBUG_STOPWATCH)
     Stopwatch::debug(PSTR("start"));

@@ -39,7 +39,7 @@
     #include <LiquidTWI2.h>
   #elif ENABLED(LCM1602)
     #include <Wire.h>
-    #include <LCD.h>
+    //#include <LCD.h>
     #include <LiquidCrystal_I2C.h>
   #elif ENABLED(DOGLCD)
     #include <U8glib.h> // library for graphics LCD by Oli Kraus (https://github.com/olikraus/U8glib_Arduino)

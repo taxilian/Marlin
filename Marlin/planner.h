@@ -160,7 +160,7 @@ class Planner {
                  min_travel_feedrate_mm_s;
 
     #if HAS_ABL
-      static bool abl_enabled;              // Flag that bed leveling is enabled
+    static char abl_enabled;
       #if ABL_PLANAR
         static matrix_3x3 bed_level_matrix; // Transform to compensate for bed level
       #endif
@@ -174,6 +174,11 @@ class Planner {
       static float extruder_advance_k, advance_ed_ratio;
     #endif
 
+      inline void clearBlock()
+      {
+          if (blocks_queued())
+              block_buffer_head = block_buffer_tail;
+      }
   private:
 
     /**
@@ -235,6 +240,7 @@ class Planner {
      * Static (class) Methods
      */
 
+    static void report_positon();
     static void reset_acceleration_rates();
     static void refresh_positioning();
 
@@ -313,6 +319,36 @@ class Planner {
      *  fr_mm_s  - (target) speed of the move (mm/s)
      *  extruder - target extruder
      */
+    static FORCE_INLINE void buffer_line_and_report(ARG_X, ARG_Y, ARG_Z, const float &e, const float &fr_mm_s, const uint8_t extruder) {
+            SERIAL_PROTOCOLPGM("lx:");
+      SERIAL_PROTOCOL(lx);
+      SERIAL_PROTOCOLPGM(" ly:");
+      SERIAL_PROTOCOL(ly);
+      SERIAL_PROTOCOLPGM(" lz:");
+      SERIAL_PROTOCOL(lz);
+      SERIAL_PROTOCOLPGM(" le:");
+      SERIAL_PROTOCOLLN(e);
+      #if PLANNER_LEVELING && IS_CARTESIAN
+        apply_leveling(lx, ly, lz);
+                  SERIAL_PROTOCOLPGM("lx:");
+      SERIAL_PROTOCOL(lx);
+      SERIAL_PROTOCOLPGM(" ly:");
+      SERIAL_PROTOCOL(ly);
+      SERIAL_PROTOCOLPGM(" lz:");
+      SERIAL_PROTOCOL(lz);
+      SERIAL_PROTOCOLPGM(" le:");
+      SERIAL_PROTOCOLLN(e);
+      #endif
+      _buffer_line(lx, ly, lz, e, fr_mm_s, extruder);
+            SERIAL_PROTOCOLPGM("lx:");
+      SERIAL_PROTOCOL(lx);
+      SERIAL_PROTOCOLPGM(" ly:");
+      SERIAL_PROTOCOL(ly);
+      SERIAL_PROTOCOLPGM(" lz:");
+      SERIAL_PROTOCOL(lz);
+      SERIAL_PROTOCOLPGM(" le:");
+      SERIAL_PROTOCOLLN(e);
+    }
     static FORCE_INLINE void buffer_line_kinematic(const float ltarget[XYZE], const float &fr_mm_s, const uint8_t extruder) {
       #if PLANNER_LEVELING
         float lpos[XYZ] = { ltarget[X_AXIS], ltarget[Y_AXIS], ltarget[Z_AXIS] };
@@ -343,6 +379,36 @@ class Planner {
       #endif
       _set_position_mm(lx, ly, lz, e);
     }
+    static FORCE_INLINE void set_position_mm_and_report(ARG_X, ARG_Y, ARG_Z, const float &e) {
+      SERIAL_PROTOCOLPGM("lx:");
+      SERIAL_PROTOCOL(lx);
+      SERIAL_PROTOCOLPGM(" ly:");
+      SERIAL_PROTOCOL(ly);
+      SERIAL_PROTOCOLPGM(" lz:");
+      SERIAL_PROTOCOL(lz);
+      SERIAL_PROTOCOLPGM(" le:");
+      SERIAL_PROTOCOLLN(e);
+      #if PLANNER_LEVELING && IS_CARTESIAN
+        apply_leveling(lx, ly, lz);
+            SERIAL_PROTOCOLPGM("lx:");
+      SERIAL_PROTOCOL(lx);
+      SERIAL_PROTOCOLPGM(" ly:");
+      SERIAL_PROTOCOL(ly);
+      SERIAL_PROTOCOLPGM(" lz:");
+      SERIAL_PROTOCOL(lz);
+      SERIAL_PROTOCOLPGM(" le:");
+      SERIAL_PROTOCOLLN(e);
+      #endif
+      _set_position_mm(lx, ly, lz, e);
+      SERIAL_PROTOCOLPGM("lx:");
+      SERIAL_PROTOCOL(lx);
+      SERIAL_PROTOCOLPGM(" ly:");
+      SERIAL_PROTOCOL(ly);
+      SERIAL_PROTOCOLPGM(" lz:");
+      SERIAL_PROTOCOL(lz);
+      SERIAL_PROTOCOLPGM(" le:");
+      SERIAL_PROTOCOLLN(e);
+    }
     static void set_position_mm_kinematic(const float position[NUM_AXIS]);
     static void set_position_mm(const AxisEnum axis, const float &v);
     static FORCE_INLINE void set_z_position_mm(const float &z) { set_position_mm(Z_AXIS, z); }
@@ -363,8 +429,10 @@ class Planner {
      * Called when the current block is no longer needed.
      */
     static void discard_current_block() {
+        cli();
       if (blocks_queued())
         block_buffer_tail = BLOCK_MOD(block_buffer_tail + 1);
+        sei();
     }
 
     /**

@@ -98,6 +98,13 @@
 #define BOARD_BQ_ZUM_MEGA_3D    503  // bq ZUM Mega 3D
 #define BOARD_ZRIB_V20          504  // zrib V2.0 control board (Chinese knock off RAMPS replica)
 
+#define	BOARD_ONEPLUS_wanhao	510
+#define	BOARD_ONEPLUS1_wanhao	511
+#define	BOARD_MELZI_wanhao		520
+#define	BOARD_ULTIMAKER_wanhao	530
+#define	BOARD_I3PLUS			540
+#define	BOARD_F6				541
+#define BOARD_I3PLUS3030        542
 #define MB(board) (MOTHERBOARD==BOARD_##board)
 
 #endif // __BOARDS_H

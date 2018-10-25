@@ -32,6 +32,14 @@ class MarlinSettings {
     static void reset();
     static bool save();
 
+    static void saveEnvironmentFilRanOutParam();
+    static void loadEnvironmentFilRanOutParam();
+    static void FunV04D(uint32_t& printedTime);
+    static void FunV04E(uint32_t& printedTime);
+    static void FunV04E(uint32_t& printedTime,long &stepperZcount); 
+    static bool FunV009();
+    static void FunV00D();
+    static void FunV004();
     #if ENABLED(EEPROM_SETTINGS)
       static bool load();
 

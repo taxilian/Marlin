@@ -31,6 +31,9 @@
 #include "planner.h"
 #include "language.h"
 
+#ifdef FYS_CONTROL_PROTOCOL
+#include "fysControlProtocol.h"
+#endif
 #if ENABLED(HEATER_0_USES_MAX6675)
   #include "spi.h"
 #endif
@@ -385,9 +388,11 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS],
           }
         }
       }
-      #define MAX_OVERSHOOT_PID_AUTOTUNE 20
+      #define MAX_OVERSHOOT_PID_AUTOTUNE 30
       if (input > temp + MAX_OVERSHOOT_PID_AUTOTUNE) {
         SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH);
+          GLOBAL_var_V001 |= ((uint16_t)0x0001 << MACRO_var_V05F);
+          FunV006(MSG_PID_TEMP_TOO_HIGH);
         return;
       }
       // Every 2 seconds...
@@ -402,6 +407,8 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS],
       // Over 2 minutes?
       if (((ms - t1) + (ms - t2)) > (10L * 60L * 1000L * 2L)) {
         SERIAL_PROTOCOLLNPGM(MSG_PID_TIMEOUT);
+        GLOBAL_var_V001 |= ((uint16_t)0x0001 << MACRO_var_V05F);
+        FunV006(MSG_PID_TIMEOUT);
         return;
       }
       if (cycles > ncycles) {
@@ -447,11 +454,16 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS],
             _SET_BED_PID();
           #endif
         }
+        GLOBAL_var_V001 |= ((uint16_t)0x0001 << MACRO_var_V05F);
         return;
       }
       lcd_update();
+#ifdef FYS_CONTROL_PROTOCOL
+      fysControlProtocol();
+#endif
     }
     if (!wait_for_heatup) disable_all_heaters();
+    GLOBAL_var_V001 |= ((uint16_t)0x0001 << MACRO_var_V05F);
   }
 
 #endif // HAS_PID_HEATING
@@ -516,7 +528,21 @@ void Temperature::_temp_error(const int8_t e, const char * const serial_msg, con
     SERIAL_ERROR_START();
     serialprintPGM(serial_msg);
     SERIAL_ERRORPGM(MSG_STOPPED_HEATER);
-    if (e >= 0) SERIAL_ERRORLN((int)e); else SERIAL_ERRORLNPGM(MSG_HEATER_BED);
+#if PIN_EXISTS(POW_BREAK_CHECK)||PIN_EXISTS(SHUTDOWN_CHECK)||PIN_EXISTS(PS_ON) 
+    if (GLOBAL_var_V003 != MACRO_var_V00B)
+    {
+        if (e >= 0)
+        {
+            SERIAL_ERRORLN((int)e);
+            dwin_popup(PSTR("Extruder heat fail.\nSystem stop.\nPlease restart machine."),1);
+        }
+        else
+        {
+            SERIAL_ERRORLNPGM(MSG_HEATER_BED);
+            dwin_popup(PSTR("Bed heat fail.\nSystem stop.\nPlease restart machine."),1);
+        }
+    }
+#endif
   }
   #if DISABLED(BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE)
     if (!killed) {
@@ -719,13 +745,26 @@ void Temperature::manage_heater() {
 
   updateTemperaturesFromRawValues(); // also resets the watchdog
 
+  #if WATCH_HOTENDS || WATCH_THE_BED || DISABLED(PIDTEMPBED) || HAS_AUTO_FAN || HEATER_IDLE_HANDLER
+    millis_t ms = millis();
+  #endif
   #if ENABLED(HEATER_0_USES_MAX6675)
     if (current_temperature[0] > min(HEATER_0_MAXTEMP, MAX6675_TMAX - 1.0)) max_temp_error(0);
     if (current_temperature[0] < max(HEATER_0_MINTEMP, MAX6675_TMIN + .01)) min_temp_error(0);
-  #endif
-
-  #if WATCH_HOTENDS || WATCH_THE_BED || DISABLED(PIDTEMPBED) || HAS_AUTO_FAN || HEATER_IDLE_HANDLER
-    millis_t ms = millis();
+  #elif defined(TEMP_LIMIT_MONITOR)
+    static millis_t startTime = ms;
+    if (ms > startTime + 1000)
+    {
+        for (uint8_t e = 0; e < HOTENDS; e++)
+        {
+            if (current_temperature[e] <= HEATER_0_MINTEMP) min_temp_error(e);
+            else if (current_temperature[e] >= HEATER_0_MAXTEMP)max_temp_error(e);
+        }
+        #if HAS_TEMP_BED
+        if(current_temperature_bed<=BED_MINTEMP)min_temp_error(-1);
+        else if(current_temperature_bed>=BED_MAXTEMP)max_temp_error(-1);
+        #endif
+    }
   #endif
 
   HOTEND_LOOP() {
@@ -746,8 +785,11 @@ void Temperature::manage_heater() {
       // Make sure temperature is increasing
       if (watch_heater_next_ms[e] && ELAPSED(ms, watch_heater_next_ms[e])) { // Time to check this extruder?
         if (degHotend(e) < watch_target_temp[e])                             // Failed to increase enough?
-          _temp_error(e, PSTR(MSG_T_HEATING_FAILED), PSTR(MSG_HEATING_FAILED_LCD));
-        else                                                                 // Start again if the target is still far off
+          {
+              FunV006("Heating failed.\nSystem stop.");
+              _temp_error(e, PSTR(MSG_T_HEATING_FAILED), PSTR(MSG_HEATING_FAILED_LCD));
+          }
+        else                                                                 
           start_watching_heater(e);
       }
     #endif
@@ -785,8 +827,11 @@ void Temperature::manage_heater() {
     // Make sure temperature is increasing
     if (watch_bed_next_ms && ELAPSED(ms, watch_bed_next_ms)) {        // Time to check the bed?
       if (degBed() < watch_target_bed_temp)                           // Failed to increase enough?
-        _temp_error(-1, PSTR(MSG_T_HEATING_FAILED), PSTR(MSG_HEATING_FAILED_LCD));
-      else                                                            // Start again if the target is still far off
+        {
+            FunV006("Heating failed.\nSystem stop.");
+            _temp_error(-1, PSTR(MSG_T_HEATING_FAILED), PSTR(MSG_HEATING_FAILED_LCD));
+        }
+      else                                                            
         start_watching_bed();
     }
   #endif // WATCH_THE_BED
@@ -862,6 +907,7 @@ float Temperature::analog2temp(int raw, uint8_t e) {
       SERIAL_ERROR_START();
       SERIAL_ERROR((int)e);
       SERIAL_ERRORLNPGM(MSG_INVALID_EXTRUDER_NUM);
+      FunV006(MSG_INVALID_EXTRUDER_NUM);
       kill(PSTR(MSG_KILLED));
       return 0.0;
     }

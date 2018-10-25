@@ -43,6 +43,13 @@ public:
   //files auto[0-9].g on the sd card are performed in a row
   //this is to delay autostart and hence the initialisaiton of the sd card to some seconds after the normal init, so the device is available quick after a reset
 
+  bool write_string(char* buffer);
+  FORCE_INLINE int16_t fgets(char* str, int16_t num) { return file.fgets(str, num, NULL); }
+  FORCE_INLINE int errorCode() { return card.errorCode(); }
+  FORCE_INLINE bool atRoot() { return workDirDepth == 0; }
+  FORCE_INLINE void clearError() { card.error(0); }
+  FORCE_INLINE uint32_t getFilePos() { return sdpos; }
+  FORCE_INLINE uint32_t getFileSize() { return filesize; }
   void checkautostart(bool x);
   void openFile(char* name, bool read, bool push_current=false);
   void openLogFile(char* name);
@@ -91,6 +98,7 @@ public:
   bool saving, logging, sdprinting, cardOK, filenameIsDir;
   char filename[FILENAME_LENGTH], longFilename[LONG_FILENAME_LENGTH];
   int autostart_index;
+  SdFile file;
 private:
   SdFile root, *curDir, workDir, workDirParents[MAX_DIR_DEPTH];
   uint8_t workDirDepth;

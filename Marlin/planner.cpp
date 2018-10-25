@@ -814,9 +814,12 @@ void Planner::_buffer_line(const float &a, const float &b, const float &c, const
 
   // If the buffer is full: good! That means we are well ahead of the robot.
   // Rest here until there is room in the buffer.
-  while (block_buffer_tail == next_buffer_head) idle();
 
   // Prepare to set up new block
+  while (block_buffer_tail == next_buffer_head
+      && Stepper::powerBreakStatus == 0 
+      ) idle();
+  if (Stepper::powerBreakStatus)return;
   block_t* block = &block_buffer[block_buffer_head];
 
   // Clear all flags, including the "busy" bit
@@ -1428,6 +1431,7 @@ void Planner::_buffer_line(const float &a, const float &b, const float &c, const
   calculate_trapezoid_for_block(block, block->entry_speed / block->nominal_speed, safe_speed / block->nominal_speed);
 
   // Move buffer head
+  block->sdPos = currentCmdSdPos.n32; 
   block_buffer_head = next_buffer_head;
 
   // Update the position (only when a move was queued)
@@ -1524,6 +1528,17 @@ void Planner::set_position_mm(const AxisEnum axis, const float &v) {
 }
 
 // Recalculate the steps/s^2 acceleration rates, based on the mm/s^2
+void Planner::report_positon()
+{
+  SERIAL_PROTOCOLPGM("pX:");
+  SERIAL_PROTOCOL(position[X_AXIS]);
+  SERIAL_PROTOCOLPGM(" pY:");
+  SERIAL_PROTOCOL(position[Y_AXIS]);
+  SERIAL_PROTOCOLPGM(" pZ:");
+  SERIAL_PROTOCOL(position[Z_AXIS]);
+  SERIAL_PROTOCOLPGM(" pE:");
+  SERIAL_PROTOCOL(position[E_AXIS]);
+}
 void Planner::reset_acceleration_rates() {
   #if ENABLED(DISTINCT_E_FACTORS)
     #define HIGHEST_CONDITION (i < E_AXIS || i == E_AXIS + active_extruder)

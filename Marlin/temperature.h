@@ -35,6 +35,7 @@
   #include "stepper.h"
 #endif
 
+#include "ultralcd.h" 
 #ifndef SOFT_PWM_SCALE
   #define SOFT_PWM_SCALE 0
 #endif
@@ -390,6 +391,7 @@ class Temperature {
       #if WATCH_HOTENDS
         start_watching_heater(HOTEND_INDEX);
       #endif
+        GLOBAL_var_V001 |= ((uint16_t)0x0001 << MACRO_var_V004);
     }
 
     static void setTargetBed(const int16_t celsius) {
@@ -404,6 +406,7 @@ class Temperature {
         #if WATCH_THE_BED
           start_watching_bed();
         #endif
+          GLOBAL_var_V001 |= ((uint16_t)0x0001 << MACRO_var_V004);
       #endif
     }
 
@@ -475,10 +478,37 @@ class Temperature {
             babystepsTodo[axis] += distance;
           #endif
         }
+    else
+    {
+    }
       }
-
-    #endif // BABYSTEPPING
-
+    static void babystep_axis_force(const AxisEnum axis, const int distance) {
+          #if IS_CORE
+            #if ENABLED(BABYSTEP_XY)
+              switch (axis) {
+                case CORE_AXIS_1: 
+                  babystepsTodo[CORE_AXIS_1] += distance * 2;
+                  babystepsTodo[CORE_AXIS_2] += distance * 2;
+                  break;
+                case CORE_AXIS_2: 
+                  babystepsTodo[CORE_AXIS_1] += CORESIGN(distance * 2);
+                  babystepsTodo[CORE_AXIS_2] -= CORESIGN(distance * 2);
+                  break;
+                case NORMAL_AXIS: 
+                  babystepsTodo[NORMAL_AXIS] += distance;
+                  break;
+              }
+            #elif CORE_IS_XZ || CORE_IS_YZ
+              babystepsTodo[CORE_AXIS_1] += CORESIGN(distance * 2);
+              babystepsTodo[CORE_AXIS_2] -= CORESIGN(distance * 2);
+            #else
+              babystepsTodo[Z_AXIS] += distance;
+            #endif
+          #else
+            babystepsTodo[axis] += distance;
+          #endif
+      }
+    #endif 
     #if ENABLED(PROBING_HEATERS_OFF)
       static void pause(const bool p);
       static bool is_paused() { return paused; }

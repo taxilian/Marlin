@@ -52,6 +52,23 @@
   #define SERIAL_REGNAME_INTERNAL(registerbase,number,suffix) registerbase##number##suffix
 #endif
 
+#ifdef mySERIAL_Nums
+#define M_UCSRxA(port) SERIAL_REGNAME(UCSR,port,A) 
+#define M_UCSRxB(port) SERIAL_REGNAME(UCSR,port,B)
+#define M_RXENx(port) SERIAL_REGNAME(RXEN,port,)
+#define M_TXENx(port) SERIAL_REGNAME(TXEN,port,)
+#define M_TXCx(port) SERIAL_REGNAME(TXC,port,)
+#define M_RXCIEx(port) SERIAL_REGNAME(RXCIE,port,)
+#define M_UDREx(port) SERIAL_REGNAME(UDRE,port,)
+#define M_UDRIEx(port) SERIAL_REGNAME(UDRIE,port,)
+#define M_UDRx(port) SERIAL_REGNAME(UDR,port,)
+#define M_UBRRxH(port) SERIAL_REGNAME(UBRR,port,H)
+#define M_UBRRxL(port) SERIAL_REGNAME(UBRR,port,L)
+#define M_RXCx(port) SERIAL_REGNAME(RXC,port,)
+#define M_USARTx_RX_vect(port) SERIAL_REGNAME(USART,port,_RX_vect)
+#define M_U2Xx(port) SERIAL_REGNAME(U2X,port,)
+#define M_USARTx_UDRE_vect(port) SERIAL_REGNAME(USART,port,_UDRE_vect)
+#else 
 // Registers used by MarlinSerial class (expanded depending on selected serial port)
 #define M_UCSRxA           SERIAL_REGNAME(UCSR,SERIAL_PORT,A) // defines M_UCSRxA to be UCSRnA where n is the serial port number
 #define M_UCSRxB           SERIAL_REGNAME(UCSR,SERIAL_PORT,B)
@@ -69,6 +86,7 @@
 #define M_U2Xx             SERIAL_REGNAME(U2X,SERIAL_PORT,)
 #define M_USARTx_UDRE_vect SERIAL_REGNAME(USART,SERIAL_PORT,_UDRE_vect)
 
+#endif
 #define DEC 10
 #define HEX 16
 #define OCT 8
@@ -107,19 +125,54 @@
       volatile uint8_t tail;
     };
   #endif
-
-  #if UART_PRESENT(SERIAL_PORT)
-    extern ring_buffer_r rx_buffer;
-    #if TX_BUFFER_SIZE > 0
-      extern ring_buffer_t tx_buffer;
+#ifdef mySERIAL_Nums
+    extern ring_buffer_r*rx_buffer0;
+      #if TX_BUFFER_SIZE > 0
+    extern ring_buffer_t*tx_buffer0;
+      #endif
+#else 
+    #if UART_PRESENT(SERIAL_PORT)
+      extern ring_buffer_r rx_buffer;
+      #if TX_BUFFER_SIZE > 0
+        extern ring_buffer_t tx_buffer;
+      #endif
     #endif
-  #endif
-
-  class MarlinSerial { //: public Stream
-
+#endif
+  class MarlinSerial { 
+#ifdef mySERIAL_Nums
+  private:
+      const static unsigned char Port[mySERIAL_Nums];
+      static ring_buffer_r*activeRxBuffer;
+    #if TX_BUFFER_SIZE > 0
+      static ring_buffer_t*activeTxBuffer;
+    #endif
+#endif
     public:
-      MarlinSerial() {};
+      MarlinSerial(){};
+#ifdef mySERIAL_Nums
+      const static bool sPcomm[mySERIAL_Nums];
+      const static bool sCmd[mySERIAL_Nums];
+      static char activeRxSerial,activeTxSerial;
+      static void begin();
+      inline void uart0Send(uint8_t c) 
+      {
+          while (!TEST(M_UCSRxA(0), M_UDREx(0)));
+          M_UDRx(0) = c;
+      }
+      static inline void storeCharToUart0(uint8_t c){
+          if (rx_buffer0){
+              const uint8_t h = rx_buffer0->head,
+                  i = (uint8_t)(h + 1) & (RX_BUFFER_SIZE - 1);
+              if (i != rx_buffer0->tail) {
+                  rx_buffer0->buffer[h] = c;
+                  rx_buffer0->head = i;
+              }
+          }
+      }
+      inline uint8_t space(){ return RX_BUFFER_SIZE - available(); }
+#else
       static void begin(const long);
+#endif
       static void end();
       static int peek(void);
       static int read(void);
@@ -142,6 +195,11 @@
       static FORCE_INLINE void print(const String& s) { for (int i = 0; i < (int)s.length(); i++) write(s[i]); }
       static FORCE_INLINE void print(const char* str) { write(str); }
 
+#ifdef mySERIAL_Nums
+      static void setRxActiveSerial(int s);
+      static void setTxActiveSerial(int s);
+      static void storeChar(char c, int port);
+#endif
       static void print(char, int = BYTE);
       static void print(unsigned char, int = BYTE);
       static void print(int, int = DEC);

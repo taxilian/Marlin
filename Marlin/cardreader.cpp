@@ -333,6 +333,7 @@ void CardReader::openFile(char* name, bool read, bool push_current/*=false*/) {
       if (file_subcall_ctr > SD_PROCEDURE_DEPTH - 1) {
         SERIAL_ERROR_START();
         SERIAL_ERRORPGM("trying to call sub-gcode files with too many levels. MAX level is:");
+        FunV006("Trying to call sub-gcode files with too many levels.");
         SERIAL_ERRORLN(SD_PROCEDURE_DEPTH);
         kill(PSTR(MSG_KILLED));
         return;
@@ -423,6 +424,7 @@ void CardReader::openFile(char* name, bool read, bool push_current/*=false*/) {
       SERIAL_PROTOCOLCHAR('.');
       SERIAL_EOL();
     }
+    feedrate_percentage = 100;
   }
   else { //write
     if (!file.open(curDir, fname, O_CREAT | O_APPEND | O_WRITE | O_TRUNC)) {
@@ -531,6 +533,11 @@ void CardReader::write_command(char *buf) {
   }
 }
 
+bool CardReader::write_string(char* buffer)
+{
+    file.write(buffer);
+    return file.writeError;
+}
 void CardReader::checkautostart(bool force) {
   if (!force && (!autostart_stilltocheck || ELAPSED(millis(), next_autostart_ms)))
     return;

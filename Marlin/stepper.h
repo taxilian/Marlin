@@ -77,12 +77,15 @@ extern Stepper stepper;
                  "r26" \
                )
 
+#define ENABLE_STEPPER_DRIVER_INTERRUPT()  SBI(TIMSK1, OCIE1A)
+#define DISABLE_STEPPER_DRIVER_INTERRUPT() CBI(TIMSK1, OCIE1A)
 class Stepper {
 
   public:
 
     static block_t* current_block;  // A pointer to the block currently being traced
 
+      static volatile uint8_t powerBreakStatus;
     #if ENABLED(ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED)
       static bool abort_on_endstop_hit;
     #endif
@@ -261,6 +264,7 @@ class Stepper {
 
     #if ENABLED(BABYSTEPPING)
       static void babystep(const AxisEnum axis, const bool direction); // perform a short step with a single stepper motor, outside of any convention
+      static void babystepforce(const AxisEnum axis, const bool direction);
     #endif
 
     static inline void kill_current_block() {
@@ -392,6 +396,15 @@ class Stepper {
       static void microstep_init();
     #endif
 
+      static inline void powerStepCheck() 
+      {
+          if (powerBreakStatus == 1 || powerBreakStatus == 2)
+          {
+              powerBreakStatus = 2;
+              current_block = NULL;
+              planner.clearBlock();
+          }
+      }
 };
 
 #endif // STEPPER_H

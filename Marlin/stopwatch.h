@@ -52,6 +52,8 @@ class Stopwatch {
      */
     Stopwatch();
 
+    void resume(millis_t t);
+
     /**
      * @brief Stops the stopwatch
      * @details Stops the running timer, it will silently ignore the request if

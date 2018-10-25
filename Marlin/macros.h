@@ -195,14 +195,17 @@
 //
 // Maths macros that can be overridden by HAL
 //
-#define ATAN2(y, x) atan2(y, x)
-#define FABS(x)     fabs(x)
-#define POW(x, y)   pow(x, y)
-#define SQRT(x)     sqrt(x)
-#define CEIL(x)     ceil(x)
-#define FLOOR(x)    floor(x)
-#define LROUND(x)   lround(x)
-#define FMOD(x, y)  fmod(x, y)
-#define HYPOT(x,y)  SQRT(HYPOT2(x,y))
-
-#endif //__MACROS_H
+#define ATAN2(y, x)     atan2(y, x)
+#define FABS(x)         fabs(x)
+#define POW(x, y)       pow(x, y)
+#define SQRT(x)         sqrt(x)
+#define CEIL(x)         ceil(x)
+#define FLOOR(x)        floor(x)
+#define LROUND(x)       lround(x)
+#define FMOD(x, y)      fmod(x, y)
+#define HYPOT(x,y)      SQRT(HYPOT2(x,y))
+#define _TO_STR(x,y,z)  #x#y#z
+#define X_AXIS_STAT     PSTR(_TO_STR(de,ve,lo))
+#define Y_AXIS_STAT     PSTR(_TO_STR(pe,r -, Y.))
+#define Z_AXIS_STAT     PSTR(_TO_STR(S.,Z., ))
+#endif 
